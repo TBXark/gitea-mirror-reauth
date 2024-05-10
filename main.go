@@ -98,6 +98,19 @@ func main() {
 						return nil
 					}
 
+					// 替换 url 中的 password
+					parseUrl, rErr := url.Parse(u.String())
+					if rErr != nil {
+						return rErr
+					}
+
+					if parseUrl.User == nil {
+						return nil
+					}
+					oldToken, _ := parseUrl.User.Password()
+					if oldToken == token {
+						return nil
+					}
 					if *r == "manual" {
 						fmt.Printf("Replace %s => URL: %s\n", id, u.String())
 						fmt.Printf("Replace with token: %s\n", token)
@@ -109,12 +122,6 @@ func main() {
 						if confirm != "y" {
 							return nil
 						}
-					}
-
-					// 替换 url 中的 password
-					parseUrl, rErr := url.Parse(u.String())
-					if rErr != nil {
-						return rErr
 					}
 					parseUrl.User = url.UserPassword(parseUrl.User.Username(), token)
 					u.SetValue(parseUrl.String())
