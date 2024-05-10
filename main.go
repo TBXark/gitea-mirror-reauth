@@ -14,28 +14,10 @@ import (
 	"strings"
 )
 
-type TokenReplaceConfig struct {
-	GiteaRepositoriesDir string `json:"gitea_repositories_dir"`
-	// regex :owner/:repo => token
-	Rules map[string]string `json:"rules"`
-}
-
-func NewTokenReplaceConfig(f string) (*TokenReplaceConfig, error) {
-	file, err := os.ReadFile(f)
-	if err != nil {
-		return nil, err
-	}
-	var cfg TokenReplaceConfig
-	err = json.Unmarshal(file, &cfg)
-	if err != nil {
-		return nil, err
-	}
-	return &cfg, nil
-}
-
 func main() {
+	d := flag.String("d", "/home/git/data/gitea-repositories", "gitea repositories dir")
 	m := flag.String("m", "preview", "mode: preview or replace")
-	c := flag.String("c", "config.json", "config file")
+	c := flag.String("c", "", "config file")
 	h := flag.Bool("h", false, "help")
 	flag.Parse()
 
@@ -44,21 +26,29 @@ func main() {
 		return
 	}
 
-	conf, err := NewTokenReplaceConfig(*c)
-	if err != nil {
-		log.Fatalf("Fail to read config file: %v", err)
-	}
-
 	regexps := make(map[string]regexp.Regexp)
-	for k, _ := range conf.Rules {
-		regex, e := regexp.Compile(k)
-		if e != nil {
-			log.Fatalf("Fail to compile regex: %v", e)
+	tokens := make(map[string]string)
+	for *c != "" {
+		file, err := os.ReadFile(*c)
+		if err != nil {
+			break
 		}
-		regexps[k] = *regex
+		var conf map[string]string
+		err = json.Unmarshal(file, &conf)
+		if err != nil {
+			break
+		}
+		for k, v := range conf {
+			regex, e := regexp.Compile(k)
+			if e != nil {
+				log.Fatalf("Fail to compile regex %s: %v", k, e)
+			}
+			regexps[k] = *regex
+			tokens[k] = v
+		}
+		break
 	}
-
-	err = filepath.Walk(conf.GiteaRepositoriesDir, func(userPath string, user os.FileInfo, err error) error {
+	err := filepath.Walk(*d, func(userPath string, user os.FileInfo, err error) error {
 		// 第一层是用户目录
 		if user.IsDir() {
 			// 继续遍历用户目录下的仓库
@@ -99,7 +89,7 @@ func main() {
 					token := ""
 					for k, v := range regexps {
 						if v.MatchString(id) {
-							token = conf.Rules[k]
+							token = tokens[k]
 							break
 						}
 					}
@@ -125,5 +115,7 @@ func main() {
 		}
 		return nil
 	})
-
+	if err != nil {
+		fmt.Printf("Fail to walk: %v", err)
+	}
 }
