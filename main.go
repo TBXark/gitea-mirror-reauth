@@ -119,6 +119,7 @@ func main() {
 					}
 					oldToken, _ := parseUrl.User.Password()
 					if oldToken == token {
+						fmt.Printf("\nSkip %s => URL: %s\n", id, u.String())
 						return nil
 					}
 					if *r == "manual" {
