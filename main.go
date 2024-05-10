@@ -55,7 +55,7 @@ func main() {
 		if user.IsDir() {
 			// 继续遍历用户目录下的仓库
 			return filepath.Walk(userPath, func(repoPath string, repo os.FileInfo, err error) error {
-				if !strings.HasSuffix(repo.Name(), ".git") {
+				if !strings.HasSuffix(repoPath, ".git") {
 					return nil
 				}
 				if *l {
@@ -63,8 +63,11 @@ func main() {
 				}
 
 				// 生成正则匹配的ID
-				id := path.Join(user.Name(), repo.Name())
-				id = strings.TrimRight(id, ".git")
+				// /home/git/data/gitea-repositories/tbxark/gitea => tbxark/gitea
+				// => tbxark-fork/vue-pure-admin
+				split := strings.Split(repoPath, "/")
+				id := strings.Join(split[len(split)-2:], "/")
+				id = strings.TrimSuffix(id, ".git")
 
 				// 加载.git/config文件
 				cfgPath := path.Join(repoPath, "config")
