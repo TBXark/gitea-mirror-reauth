@@ -5,7 +5,7 @@ As Gitea does not provide a simple way to modify the authorization information o
 ### Installation
 
 ```bash
-go get -u github.com/tbxark/gitea-mirror-reauth@latest
+go install github.com/TBXark/gitea-mirror-reauth@latest
 ```
 
 ### Usage
@@ -23,7 +23,7 @@ Usage of gitea-mirror-reauth:
         replace mode: auto or manual (default "manual")
 ```
 
-### Config file
+### Configuration
 
 ```json
 {
