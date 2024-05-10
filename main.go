@@ -59,7 +59,7 @@ func main() {
 					return nil
 				}
 				if *l {
-					log.Printf("Processing %s\n", repoPath)
+					fmt.Printf("Processing %s\n", repoPath)
 				}
 
 				// 生成正则匹配的ID
@@ -74,10 +74,13 @@ func main() {
 				if _, e := os.Stat(cfgPath); os.IsNotExist(e) {
 					return nil
 				}
-				cfg, err := ini.Load(cfgPath)
+
+				raw, err := os.ReadFile(cfgPath)
 				if err != nil {
 					return err
 				}
+
+				cfg, err := ini.Load(raw)
 
 				// 获取 remote "origin" 的 url
 				remote, err := cfg.GetSection("remote \"origin\"")
@@ -92,7 +95,7 @@ func main() {
 				// 根据 mode 执行操作
 				switch *m {
 				case "preview":
-					fmt.Printf("%s => URL: %s\n", id, u.String())
+					fmt.Printf("%s\n\t\t=> URL: %s\n", id, u.String())
 				case "replace":
 					token := ""
 					for k, v := range regexps {
@@ -119,7 +122,7 @@ func main() {
 						return nil
 					}
 					if *r == "manual" {
-						fmt.Printf("Replace %s => URL: %s\n", id, u.String())
+						fmt.Printf("\nReplace %s => URL: %s\n", id, u.String())
 						fmt.Printf("Replace with token: %s\n", token)
 						fmt.Printf("Continue? [y/n]: ")
 						var confirm string
@@ -132,10 +135,11 @@ func main() {
 					}
 					parseUrl.User = url.UserPassword(parseUrl.User.Username(), token)
 					u.SetValue(parseUrl.String())
-					// 保存修改
-					rErr = cfg.SaveTo(cfgPath)
-					if rErr != nil {
-						return rErr
+
+					// 防止破坏原有文件结构，直接进行字符串替换
+					editFile := strings.ReplaceAll(string(raw), u.String(), parseUrl.String())
+					if e := os.WriteFile(cfgPath, []byte(editFile), 0644); e != nil {
+						return e
 					}
 
 				}
