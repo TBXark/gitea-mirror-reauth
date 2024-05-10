@@ -112,6 +112,7 @@ func main() {
 						return nil
 					}
 					if *r == "manual" {
+						fmt.Printf("Path: %s\n", repoPath)
 						fmt.Printf("Replace %s => URL: %s\n", id, u.String())
 						fmt.Printf("Replace with token: %s\n", token)
 						fmt.Printf("Continue? [y/n]: ")
