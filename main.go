@@ -17,6 +17,7 @@ import (
 func main() {
 	d := flag.String("d", "/home/git/data/gitea-repositories", "gitea repositories dir")
 	m := flag.String("m", "preview", "mode: preview or replace")
+	r := flag.String("r", "manual", "replace mode: auto or manual")
 	c := flag.String("c", "", "config file")
 	h := flag.Bool("h", false, "help")
 	flag.Parse()
@@ -84,7 +85,7 @@ func main() {
 				// 根据 mode 执行操作
 				switch *m {
 				case "preview":
-					fmt.Printf("ID: %s, URL: %s\n", id, u.String())
+					fmt.Printf("%s => URL: %s\n", id, u.String())
 				case "replace":
 					token := ""
 					for k, v := range regexps {
@@ -96,6 +97,20 @@ func main() {
 					if token == "" {
 						return nil
 					}
+
+					if *r == "manual" {
+						fmt.Printf("Replace %s => URL: %s\n", id, u.String())
+						fmt.Printf("Replace with token: %s\n", token)
+						fmt.Printf("Continue? [y/n]: ")
+						var confirm string
+						if _, e := fmt.Scanln(&confirm); e != nil {
+							return e
+						}
+						if confirm != "y" {
+							return nil
+						}
+					}
+
 					// 替换 url 中的 password
 					parseUrl, rErr := url.Parse(u.String())
 					if rErr != nil {
