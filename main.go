@@ -19,6 +19,7 @@ func main() {
 	m := flag.String("m", "preview", "mode: preview or replace")
 	r := flag.String("r", "manual", "replace mode: auto or manual")
 	c := flag.String("c", "", "config file")
+	l := flag.Bool("l", false, "log")
 	h := flag.Bool("h", false, "help")
 	flag.Parse()
 
@@ -56,6 +57,9 @@ func main() {
 			return filepath.Walk(userPath, func(repoPath string, repo os.FileInfo, err error) error {
 				if !strings.HasSuffix(repo.Name(), ".git") {
 					return nil
+				}
+				if *l {
+					log.Printf("Processing %s\n", repoPath)
 				}
 
 				// 生成正则匹配的ID
@@ -112,7 +116,6 @@ func main() {
 						return nil
 					}
 					if *r == "manual" {
-						fmt.Printf("Path: %s\n", repoPath)
 						fmt.Printf("Replace %s => URL: %s\n", id, u.String())
 						fmt.Printf("Replace with token: %s\n", token)
 						fmt.Printf("Continue? [y/n]: ")
