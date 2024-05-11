@@ -12,11 +12,12 @@ go install github.com/TBXark/gitea-mirror-reauth@latest
 
 ```
 gitea-mirror-reauth
-
+expected 'preview', 'auto-replace' or 'token-replace' subcommands
 Usage:
-  preview       --gitea-dir /path/to/gitea-repositories
-  auto-replace  --gitea-dir /path/to/gitea-repositories --config /path/to/config.json --confirm
-  token-replace --gitea-dir /path/to/gitea-repositories
+  preview       preview all gitea repositories
+  auto-replace  auto replace gitea repositories token by config
+  token-replace replace gitea repositories token manually
+
 ```
 
 ### preview
