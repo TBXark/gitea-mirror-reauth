@@ -4,53 +4,96 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"gopkg.in/ini.v1"
-	"log"
 	"net/url"
 	"os"
-	"path"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 )
 
 func main() {
-	d := flag.String("d", "/home/git/data/gitea-repositories", "gitea repositories dir")
-	m := flag.String("m", "preview", "mode: preview or replace")
-	r := flag.String("r", "manual", "replace mode: auto or manual")
-	c := flag.String("c", "", "config file")
-	l := flag.Bool("l", false, "log")
-	h := flag.Bool("h", false, "help")
-	flag.Parse()
 
-	if *h {
-		flag.Usage()
-		return
+	if len(os.Args) < 2 {
+		handleMissingSubcommand()
 	}
 
-	regexps := make(map[string]regexp.Regexp)
-	tokens := make(map[string]string)
-	for *c != "" {
-		file, err := os.ReadFile(*c)
-		if err != nil {
-			break
-		}
-		var conf map[string]string
-		err = json.Unmarshal(file, &conf)
-		if err != nil {
-			break
-		}
-		for k, v := range conf {
-			regex, e := regexp.Compile(k)
-			if e != nil {
-				log.Fatalf("Fail to compile regex %s: %v", k, e)
+	previewCmd := flag.NewFlagSet("preview", flag.ExitOnError)
+	autoReplaceCmd := flag.NewFlagSet("auto-replace", flag.ExitOnError)
+	tokenReplaceCmd := flag.NewFlagSet("token-replace", flag.ExitOnError)
+
+	var giteaDir string
+	var configFilePath string
+	var confirm bool
+	var help bool
+
+	subCommands := []*flag.FlagSet{previewCmd, autoReplaceCmd, tokenReplaceCmd}
+
+	autoReplaceCmd.StringVar(&configFilePath, "config", "", "config file path")
+	autoReplaceCmd.BoolVar(&confirm, "confirm", false, "confirm")
+
+	for _, cmd := range subCommands {
+		cmd.StringVar(&giteaDir, "gitea-dir", "/home/git/data/gitea-repositories", "gitea repositories dir")
+		cmd.BoolVar(&help, "help", false, "help")
+		if os.Args[1] == cmd.Name() {
+			err := cmd.Parse(os.Args[2:])
+			if err != nil {
+				panic(err)
 			}
-			regexps[k] = *regex
-			tokens[k] = v
+			if help {
+				cmd.Usage()
+				os.Exit(0)
+			}
+			break
 		}
-		break
 	}
-	err := filepath.Walk(*d, func(userPath string, user os.FileInfo, err error) error {
+
+	switch os.Args[1] {
+	case previewCmd.Name():
+		handlePreview(giteaDir)
+	case autoReplaceCmd.Name():
+		handleAutoReplace(giteaDir, configFilePath, confirm)
+	case tokenReplaceCmd.Name():
+		handleTokenReplace(giteaDir)
+	}
+
+}
+
+func handleMissingSubcommand() {
+	fmt.Println("gitea-mirror-reauth")
+	fmt.Println("expected 'preview', 'auto-replace' or 'token-replace' subcommands")
+	fmt.Println("Usage:")
+	fmt.Println("  preview       --gitea-dir /path/to/gitea-repositories")
+	fmt.Println("  auto-replace  --gitea-dir /path/to/gitea-repositories --config /path/to/config.json --confirm")
+	fmt.Println("  token-replace --gitea-dir /path/to/gitea-repositories")
+	os.Exit(1)
+}
+
+func getRemoteOriginURL(dir string) (string, error) {
+	// git --git-dir=$dir config --get remote.origin.url
+	cmd := exec.Command("git", "--git-dir="+dir, "config", "--get", "remote.origin.url")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func setRemoteOriginURL(dir string, url string) error {
+	// git --git-dir=/path/to/repo/.git remote set-url origin $url
+	cmd := exec.Command("git", "--git-dir="+dir, "remote", "set-url", "origin", url)
+	return cmd.Run()
+}
+
+type giteaRepo struct {
+	ID  string `json:"id"`
+	Dir string `json:"dir"`
+	URL string `json:"url"`
+}
+
+func loadGiteaRepos(dir string) ([]giteaRepo, error) {
+	res := make([]giteaRepo, 0)
+	err := filepath.Walk(dir, func(userPath string, user os.FileInfo, err error) error {
 		// 第一层是用户目录
 		if user.IsDir() {
 			// 继续遍历用户目录下的仓库
@@ -58,10 +101,6 @@ func main() {
 				if !strings.HasSuffix(repoPath, ".git") {
 					return nil
 				}
-				if *l {
-					fmt.Printf("Processing %s\n", repoPath)
-				}
-
 				// 生成正则匹配的ID
 				// /home/git/data/gitea-repositories/tbxark/gitea => tbxark/gitea
 				// => tbxark-fork/vue-pure-admin
@@ -69,87 +108,132 @@ func main() {
 				id := strings.Join(split[len(split)-2:], "/")
 				id = strings.TrimSuffix(id, ".git")
 
-				// 加载.git/config文件
-				cfgPath := path.Join(repoPath, "config")
-				if _, e := os.Stat(cfgPath); os.IsNotExist(e) {
+				// 获取 remote "origin" 的 url
+				remoteUrl, err := getRemoteOriginURL(repoPath)
+				if err != nil {
 					return nil
 				}
-
-				raw, err := os.ReadFile(cfgPath)
-				if err != nil {
-					return err
-				}
-
-				cfg, err := ini.Load(raw)
-
-				// 获取 remote "origin" 的 url
-				remote, err := cfg.GetSection("remote \"origin\"")
-				if err != nil {
-					return err
-				}
-				u, err := remote.GetKey("url")
-				if err != nil {
-					return err
-				}
-
-				// 根据 mode 执行操作
-				switch *m {
-				case "preview":
-					fmt.Printf("%s\n\t\t=> URL: %s\n", id, u.String())
-				case "replace":
-					token := ""
-					for k, v := range regexps {
-						if v.MatchString(id) {
-							token = tokens[k]
-							break
-						}
-					}
-					if token == "" {
-						return nil
-					}
-
-					// 替换 url 中的 password
-					parseUrl, rErr := url.Parse(u.String())
-					if rErr != nil {
-						return rErr
-					}
-
-					if parseUrl.User == nil {
-						return nil
-					}
-					oldToken, _ := parseUrl.User.Password()
-					if oldToken == token {
-						fmt.Printf("\nSkip %s => URL: %s\n", id, u.String())
-						return nil
-					}
-					if *r == "manual" {
-						fmt.Printf("\nReplace %s => URL: %s\n", id, u.String())
-						fmt.Printf("Replace with token: %s\n", token)
-						fmt.Printf("Continue? [y/n]: ")
-						var confirm string
-						if _, e := fmt.Scanln(&confirm); e != nil {
-							return e
-						}
-						if confirm != "y" {
-							return nil
-						}
-					}
-					parseUrl.User = url.UserPassword(parseUrl.User.Username(), token)
-					u.SetValue(parseUrl.String())
-
-					// 防止破坏原有文件结构，直接进行字符串替换
-					editFile := strings.ReplaceAll(string(raw), u.String(), parseUrl.String())
-					if e := os.WriteFile(cfgPath, []byte(editFile), 0644); e != nil {
-						return e
-					}
-
-				}
+				res = append(res, giteaRepo{
+					ID:  id,
+					Dir: repoPath,
+					URL: remoteUrl,
+				})
 				return nil
+
 			})
 		}
 		return nil
 	})
+	return res, err
+}
+
+func handlePreview(giteaDir string) {
+	repos, err := loadGiteaRepos(giteaDir)
 	if err != nil {
-		fmt.Printf("Fail to walk: %v", err)
+		panic(err)
+	}
+	for _, repo := range repos {
+		fmt.Printf("%s\n\t%s\n\t%s\n\n", repo.ID, repo.Dir, repo.URL)
+	}
+}
+
+func handleAutoReplace(giteaDir string, configFilePath string, confirm bool) {
+	configFileRaw, err := os.ReadFile(configFilePath)
+	if err != nil {
+		panic(err)
+	}
+	var config map[string]string
+	err = json.Unmarshal(configFileRaw, &config)
+	if err != nil {
+		panic(err)
+	}
+	regexps := make(map[string]*regexp.Regexp)
+	for k, v := range config {
+		regexps[k] = regexp.MustCompile(v)
+	}
+	repos, err := loadGiteaRepos(giteaDir)
+	if err != nil {
+		panic(err)
+	}
+	for _, repo := range repos {
+		for k, v := range regexps {
+			if v.MatchString(repo.ID) {
+				urlParse, re := url.Parse(repo.URL)
+				if re != nil {
+					continue
+				}
+				if urlParse.User == nil {
+					continue
+				}
+				urlParse.User = url.UserPassword(urlParse.User.Username(), config[k])
+				newURL := urlParse.String()
+				if confirm {
+					fmt.Printf("Replace %s\n", repo.ID)
+					fmt.Printf("\t%s\n", repo.URL)
+					fmt.Printf("\t%s\n", newURL)
+					fmt.Print("Confirm? [y/N]: ")
+					var confirmStr string
+					_, e := fmt.Scanln(&confirmStr)
+					if e != nil || confirmStr != "y" {
+						continue
+					}
+				}
+				re = setRemoteOriginURL(repo.Dir, newURL)
+				if re != nil {
+					fmt.Printf("Error: %s\n", re)
+				} else {
+					fmt.Printf("Success: %s\n", newURL)
+				}
+			}
+		}
+	}
+}
+
+func handleTokenReplace(giteaDir string) {
+	repos, err := loadGiteaRepos(giteaDir)
+	if err != nil {
+		panic(err)
+	}
+	tokens := make(map[string][]giteaRepo)
+	for _, repo := range repos {
+		urlParse, e := url.Parse(repo.URL)
+		if e != nil {
+			continue
+		}
+		if urlParse.User == nil {
+			continue
+		}
+		token, ok := urlParse.User.Password()
+		if !ok {
+			continue
+		}
+		tokens[token] = append(tokens[token], repo)
+	}
+	fmt.Printf("Found %d tokens\n", len(tokens))
+	for token, list := range tokens {
+		fmt.Printf("Token: %s\n", token)
+		var newToken string
+		fmt.Print("New Token: ")
+		_, e := fmt.Scanln(&newToken)
+		if e != nil {
+			continue
+		}
+		for _, repo := range list {
+			fmt.Printf("Replace %s\n", repo.ID)
+			// 替换URL
+			urlParse, re := url.Parse(repo.URL)
+			if re != nil {
+				continue
+			}
+			urlParse.User = url.UserPassword(urlParse.User.Username(), newToken)
+			newURL := urlParse.String()
+			re = setRemoteOriginURL(repo.Dir, newURL)
+			if re != nil {
+				fmt.Printf("Error: %s\n", re)
+			} else {
+				fmt.Printf("Success: %s\n", newURL)
+			}
+		}
+
 	}
 }

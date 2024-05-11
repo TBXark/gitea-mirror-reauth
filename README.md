@@ -11,16 +11,34 @@ go install github.com/TBXark/gitea-mirror-reauth@latest
 ### Usage
 
 ```
-Usage of gitea-mirror-reauth:
-  -c string
-        config file
-  -d string
+gitea-mirror-reauth
+
+Usage:
+  preview       --gitea-dir /path/to/gitea-repositories
+  auto-replace  --gitea-dir /path/to/gitea-repositories --config /path/to/config.json --confirm
+  token-replace --gitea-dir /path/to/gitea-repositories
+
+Usage of preview:
+  -gitea-dir string
         gitea repositories dir (default "/home/git/data/gitea-repositories")
-  -h    help
-  -m string
-        mode: preview or replace (default "preview")
-  -r string
-        replace mode: auto or manual (default "manual")
+  -help
+        help
+
+Usage of auto-replace:
+  -config string
+        config file path
+  -confirm
+        confirm
+  -gitea-dir string
+        gitea repositories dir (default "/home/git/data/gitea-repositories")
+  -help
+        help
+
+Usage of token-replace:
+  -gitea-dir string
+        gitea repositories dir (default "/home/git/data/gitea-repositories")
+  -help
+        help
 ```
 
 ### Configuration
