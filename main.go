@@ -102,8 +102,7 @@ func loadGiteaRepos(dir string) ([]giteaRepo, error) {
 					return nil
 				}
 				// 生成正则匹配的ID
-				// /home/git/data/gitea-repositories/tbxark/gitea => tbxark/gitea
-				// => tbxark-fork/vue-pure-admin
+				// /home/git/data/gitea-repositories/tbxark/gitea.git => tbxark/gitea
 				split := strings.Split(repoPath, "/")
 				id := strings.Join(split[len(split)-2:], "/")
 				id = strings.TrimSuffix(id, ".git")
