@@ -55,6 +55,8 @@ func main() {
 		handleAutoReplace(giteaDir, configFilePath, confirm)
 	case tokenReplaceCmd.Name():
 		handleTokenReplace(giteaDir)
+	default:
+		handleMissingSubcommand()
 	}
 
 }
@@ -63,9 +65,9 @@ func handleMissingSubcommand() {
 	fmt.Println("gitea-mirror-reauth")
 	fmt.Println("expected 'preview', 'auto-replace' or 'token-replace' subcommands")
 	fmt.Println("Usage:")
-	fmt.Println("  preview       --gitea-dir /path/to/gitea-repositories")
-	fmt.Println("  auto-replace  --gitea-dir /path/to/gitea-repositories --config /path/to/config.json --confirm")
-	fmt.Println("  token-replace --gitea-dir /path/to/gitea-repositories")
+	fmt.Println("  preview       preview all gitea repositories")
+	fmt.Println("  auto-replace  auto replace gitea repositories token by config")
+	fmt.Println("  token-replace replace gitea repositories token manually")
 	os.Exit(1)
 }
 
@@ -83,6 +85,24 @@ func setRemoteOriginURL(dir string, url string) error {
 	// git --git-dir=/path/to/repo/.git remote set-url origin $url
 	cmd := exec.Command("git", "--git-dir="+dir, "remote", "set-url", "origin", url)
 	return cmd.Run()
+}
+
+func getAllRemoteBranches(dir string) ([]string, error) {
+	cmd := exec.Command("git", "--git-dir="+dir, "branch", "-r")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	branches := strings.Split(string(out), "\n")
+	res := make([]string, 0)
+	for _, branch := range branches {
+		branch = strings.TrimSpace(branch)
+		if branch == "" {
+			continue
+		}
+		res = append(res, branch)
+	}
+	return res, nil
 }
 
 type giteaRepo struct {
@@ -133,6 +153,13 @@ func handlePreview(giteaDir string) {
 	}
 	for _, repo := range repos {
 		fmt.Printf("%s\n\t%s\n\t%s\n\n", repo.ID, repo.Dir, repo.URL)
+		branches, e := getAllRemoteBranches(repo.Dir)
+		if e == nil && len(branches) > 0 {
+			fmt.Printf("\tBranches:\n")
+			for _, branch := range branches {
+				fmt.Printf("\t\t%s\n", branch)
+			}
+		}
 	}
 }
 
