@@ -152,7 +152,7 @@ func handlePreview(giteaDir string) {
 		panic(err)
 	}
 	for _, repo := range repos {
-		fmt.Printf("%s\n\t%s\n\t%s\n\n", repo.ID, repo.Dir, repo.URL)
+		fmt.Printf("\n%s\n\t%s\n\t%s\n", repo.ID, repo.Dir, repo.URL)
 		branches, e := getAllBranches(repo.Dir)
 		if e == nil && len(branches) > 0 {
 			fmt.Printf("\tBranches:\n")
