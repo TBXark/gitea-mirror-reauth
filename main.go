@@ -87,8 +87,8 @@ func setRemoteOriginURL(dir string, url string) error {
 	return cmd.Run()
 }
 
-func getAllRemoteBranches(dir string) ([]string, error) {
-	cmd := exec.Command("git", "--git-dir="+dir, "branch", "-r")
+func getAllBranches(dir string) ([]string, error) {
+	cmd := exec.Command("git", "--git-dir="+dir, "branch")
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, err
@@ -153,7 +153,7 @@ func handlePreview(giteaDir string) {
 	}
 	for _, repo := range repos {
 		fmt.Printf("%s\n\t%s\n\t%s\n\n", repo.ID, repo.Dir, repo.URL)
-		branches, e := getAllRemoteBranches(repo.Dir)
+		branches, e := getAllBranches(repo.Dir)
 		if e == nil && len(branches) > 0 {
 			fmt.Printf("\tBranches:\n")
 			for _, branch := range branches {
