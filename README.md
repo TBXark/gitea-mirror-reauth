@@ -61,9 +61,6 @@ Usage of token-replace:
         help
 ```
 
-
-The configuration file is a JSON file, the key is regular expression, and the value is the new token. The regular expression is used to match the repository path, and the new token is used to replace the old token.
-
 ## License
 
 **gitea-mirror-reauth** is released under the MIT license. See [LICENSE](LICENSE) for details.
